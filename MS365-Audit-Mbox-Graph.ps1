@@ -1,8 +1,17 @@
-# Before running script connect to environment using the following commands:
+# This script has been tested on both Windows PowerShell (v5.x) and macOS PowerShell Core (v7.3) 
+# The MgGraph and ExchangeOnline modules are required, if this is your first time running MgGraph/ExchangeOnline 
+# modules on your computer please run:
+# 
+# Install-Module Microsoft.Graph
+# Install-Module ExchangeOnlineManagement
+#
+# Before running this script connect to environment using the following commands:
 #
 # Connect-MgGraph -Scopes Directory.ReadWrite.All,User.ReadWrite.All,Group.ReadWrite.All
-# Connect-ExchangeOnline -UserPrincipalName <username@domain-used-for-msolservice-above>
+# Connect-ExchangeOnline -UserPrincipalName <username@domain-used-for-mggraph-above>
 #
+# If running on macOS or Linux you'll need to install PowerShell Core:
+# https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell
 #
 
 $OutFile = "MailboxReport" + (Get-Date -UFormat "%y%m%d%H%M%S") + ".csv"
