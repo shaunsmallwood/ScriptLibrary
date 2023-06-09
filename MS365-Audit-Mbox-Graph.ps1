@@ -13,8 +13,14 @@
 # If running on macOS or Linux you'll need to install PowerShell Core:
 # https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell
 #
+# YOU MAY ALSO NEED TO CHANGE EXECUTION POLICY, you can check current policy by running Get-ExecutionPolicy -List
+# then run Set-ExecutionPolicy Unrestricted -Scope <desired_scope>
+#
 
-$OutFile = "MailboxReport" + (Get-Date -UFormat "%y%m%d%H%M%S") + ".csv"
+# Define output file name
+$OutFile = ".\MailboxReport" + (Get-Date -UFormat "%y%m%d%H%M%S") + ".csv"
+
+# Define array to decipher MS365 licensing "Friendly Name"
 $MSProdArray = ConvertFrom-Csv @'
 "StringID","ProductName"
 "AAD_BASIC","AZURE ACTIVE DIRECTORY BASIC"
@@ -315,17 +321,21 @@ $MSProdArray = ConvertFrom-Csv @'
 "WSFB_EDU_FACULTY","Windows Store for Business EDU Faculty"
 '@
 
+#  Pull a list of all mailboxes and defining any non-default properties to query
 $mailboxes = Get-EXOMailbox -ResultSize unlimited -Properties ArchiveStatus,ArchiveState,RetentionPolicy,AutoExpandingArchiveEnabled
 
+# Cycle through each mailbox and pull metrics for output to CSV
 foreach($mailbox in $mailboxes) {
 
     $currentuser = $mailbox.UserPrincipalName
+    # Skip built-in "DiscoverySearchMailbox"
     if ($currentuser -notlike "*DiscoverySearchMailbox*") {Write-Host "Processing $currentuser" -NoNewLine} else { Write-Host -ForegroundColor Yellow "Discovery Mailbox Detected - Skipping" ; continue}
 
     $stats = Get-EXOMailboxStatistics $mailbox.UserPrincipalName -ErrorAction SilentlyContinue -Properties LastLogonTime
     $MgUserAccount = Get-MgUser -UserId $mailbox.UserPrincipalName -Property accountEnabled, assignedLicenses, DisplayName, UserPrincipalName -ErrorAction SilentlyContinue
     $MgUserAccountLicenses = (Get-MgUserLicenseDetail -UserId $mailbox.UserPrincipalName -ErrorAction SilentlyContinue).SkuPartNumber
 
+    # Pull archive mailbox statistics if exists, even if not licensed and does not return Enabled attribute, otherwise skip
     if ($mailbox.ArchiveState -eq "Local") {
         $archivemailbox = Get-EXOMailboxStatistics $mailbox.UserPrincipalName -Archive
         if ($null -ne $archivemailbox) {
@@ -339,6 +349,7 @@ foreach($mailbox in $mailboxes) {
          $archivemailboxsize = "N/A"
      }
     
+    # Get list of MS365 licensing and match against "Friendly Name" in product array
     if (($MgUserAccountLicenses).Count -gt 0) {
         $MSLicenses = (($MgUserAccountLicenses | ForEach-Object { ($MSProdArray -match "\b$_\b").ProductName }) -Join " | ").ToUpper()
     }
@@ -346,6 +357,7 @@ foreach($mailbox in $mailboxes) {
          $MSLicenses = ""
     }
 
+    # Create/append to array with for each user/mailbox
     $ExportObject = [PSCustomObject]@{
         "Display Name" = $MgUserAccount.DisplayName
         "Username (MG)" = $MgUserAccount.UserPrincipalName
@@ -363,8 +375,9 @@ foreach($mailbox in $mailboxes) {
         "Last Logon Time" = $stats.LastLogonTime
     }
 
-    $ExportObject | Export-Csv $OutFile -NoClobber -NoTypeInformation -Append
-    Write-Host " - Complete!"
+# Export final CSV and wrap up
+$ExportObject | Export-Csv $OutFile -NoClobber -NoTypeInformation -Append
+Write-Host " - Complete!"
 }
 
 Write-Host -ForegroundColor Yellow "Script Complete - Output file name: $OutFile"
